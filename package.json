@@ -1,0 +1,48 @@
+{
+	"name": "@tappi-ai/common",
+	"version": "0.1.0",
+	"description": "Shared LatticeCast session, transport and table-resolution layer for Tappi apps.",
+	"type": "module",
+	"license": "UNLICENSED",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./config": {
+			"types": "./dist/config.d.ts",
+			"default": "./dist/config.js"
+		},
+		"./http": {
+			"types": "./dist/http.d.ts",
+			"default": "./dist/http.js"
+		},
+		"./auth": {
+			"types": "./dist/auth/index.d.ts",
+			"default": "./dist/auth/index.js"
+		},
+		"./latticecast": {
+			"types": "./dist/latticecast/index.d.ts",
+			"default": "./dist/latticecast/index.js"
+		}
+	},
+	"scripts": {
+		"build": "rm -rf dist && tsc -p tsconfig.build.json",
+		"check": "tsc -p tsconfig.json",
+		"test": "vitest run",
+		"release": "npm run check && npm run test && npm run build"
+	},
+	"peerDependencies": {
+		"svelte": "^5.0.0"
+	},
+	"devDependencies": {
+		"@types/node": "^22.0.0",
+		"svelte": "^5.0.0",
+		"typescript": "^5.6.0",
+		"vitest": "^3.0.0"
+	}
+}

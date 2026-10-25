@@ -1,0 +1,2 @@
+export { createRow, createTableResolver, deleteRow, downloadBlob, downloadBlobFile, downloadBlobText, downloadBlobUrl, listRows, resetTable, resetTables, resolveTable, TableMissingError, updateRow, uploadBlob, uploadTextBlob } from './tables.js';
+//# sourceMappingURL=index.js.map
