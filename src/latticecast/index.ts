@@ -6,6 +6,7 @@ export type {
 	MissingStage,
 	ResolvedTable,
 	TableContract,
+	TableId,
 	TableRow,
 	TextBlobOptions
 } from './tables.js';

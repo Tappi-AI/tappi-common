@@ -99,12 +99,17 @@ async function provision(contract, key) {
         }
         const created = await apiJson('/api/v1/tables', {
             method: 'POST',
-            body: JSON.stringify({ table_name: contract.tableName, workspace_id: owner })
+            body: JSON.stringify({
+                table_id: contract.tableName,
+                table_name: contract.tableName,
+                workspace_id: owner
+            })
         });
         tableId = created.table_id;
     }
-    if (typeof tableId !== 'number')
+    if (typeof tableId !== 'number' && !(typeof tableId === 'string' && tableId)) {
         throw new Error(`The ${contract.noun} table did not return an id.`);
+    }
     let schema = await readSchema(tableId, owner);
     const have = new Set(schema.map((column) => column.name));
     let added = false;
@@ -121,7 +126,7 @@ async function provision(contract, key) {
                     .map((column) => column.name)
             });
         }
-        await apiJson(`/api/v1/tables/${tableId}/columns`, {
+        await apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}/columns`, {
             method: 'POST',
             body: JSON.stringify(needed)
         });
@@ -179,7 +184,7 @@ async function findTable(contract, owner) {
     return list.find((table) => table.table_name === contract.tableName && String(table.workspace_id) === String(owner))?.table_id;
 }
 async function readSchema(tableId, owner) {
-    const body = await apiJson(`/api/v1/tables/${tableId}?workspace_id=${encodeURIComponent(owner)}`);
+    const body = await apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}?workspace_id=${encodeURIComponent(owner)}`);
     return body.columns ?? [];
 }
 /** Rows of a resolved table. */
@@ -190,26 +195,26 @@ export async function listRows(tableId, options = {}) {
     if (options.offset !== undefined)
         query.set('offset', String(options.offset));
     const suffix = query.size ? `?${query.toString()}` : '';
-    return apiJson(`/api/v1/tables/${tableId}/rows${suffix}`);
+    return apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}/rows${suffix}`);
 }
 export async function createRow(tableId, rowData) {
-    return apiJson(`/api/v1/tables/${tableId}/rows`, {
+    return apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}/rows`, {
         method: 'POST',
         body: JSON.stringify({ row_data: rowData })
     });
 }
 export async function updateRow(tableId, rowId, rowData) {
-    return apiJson(`/api/v1/tables/${tableId}/rows/${rowId}`, {
+    return apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}/rows/${rowId}`, {
         method: 'PUT',
         body: JSON.stringify({ row_data: rowData })
     });
 }
 export async function deleteRow(tableId, rowId) {
-    await apiFetch(`/api/v1/tables/${tableId}/rows/${rowId}`, { method: 'DELETE' });
+    await apiFetch(`/api/v1/tables/${encodeURIComponent(tableId)}/rows/${rowId}`, { method: 'DELETE' });
 }
 /** Path of the one file a blob column holds. */
 function blobPath(tableId, rowId, columnId) {
-    return `/api/v1/tables/${tableId}/rows/${rowId}/blob/${columnId}`;
+    return `/api/v1/tables/${encodeURIComponent(tableId)}/rows/${rowId}/blob/${columnId}`;
 }
 function formWith(field, file, filename) {
     const form = new FormData();

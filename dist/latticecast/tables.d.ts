@@ -19,9 +19,10 @@ export interface TableContract {
     create?: boolean;
 }
 /** A table the caller can read and write, with this user's own column ids. */
+export type TableId = string | number;
 export interface ResolvedTable {
     workspaceId: string;
-    tableId: number;
+    tableId: TableId;
     columns: Record<string, string>;
 }
 export interface TableRow {
@@ -61,13 +62,13 @@ export declare function createTableResolver(contract: TableContract): {
     reset: () => void;
 };
 /** Rows of a resolved table. */
-export declare function listRows(tableId: number, options?: {
+export declare function listRows(tableId: TableId, options?: {
     limit?: number;
     offset?: number;
 }): Promise<TableRow[]>;
-export declare function createRow(tableId: number, rowData: Record<string, unknown>): Promise<TableRow>;
-export declare function updateRow(tableId: number, rowId: number, rowData: Record<string, unknown>): Promise<TableRow>;
-export declare function deleteRow(tableId: number, rowId: number): Promise<void>;
+export declare function createRow(tableId: TableId, rowData: Record<string, unknown>): Promise<TableRow>;
+export declare function updateRow(tableId: TableId, rowId: number, rowData: Record<string, unknown>): Promise<TableRow>;
+export declare function deleteRow(tableId: TableId, rowId: number): Promise<void>;
 /** The descriptor LatticeCast persists in `row_data[column_id]` after an upload. */
 export interface BlobMetadata {
     row_id?: number;
@@ -89,23 +90,23 @@ export interface BlobDownloadOptions {
  * header. The client never builds the `row_data` descriptor itself — LatticeCast
  * answers with it.
  */
-export declare function uploadBlob(tableId: number, rowId: number, columnId: string, file: Blob | FormData, options?: BlobUploadOptions): Promise<BlobMetadata | null>;
+export declare function uploadBlob(tableId: TableId, rowId: number, columnId: string, file: Blob | FormData, options?: BlobUploadOptions): Promise<BlobMetadata | null>;
 export interface TextBlobOptions {
     filename?: string;
     /** Defaults to `application/x-ndjson` (the JSONL transcripts). */
     contentType?: string;
 }
 /** A text payload (a JSONL transcript, a document) as one stored file. */
-export declare function uploadTextBlob(tableId: number, rowId: number, columnId: string, text: string, options?: TextBlobOptions): Promise<BlobMetadata | null>;
+export declare function uploadTextBlob(tableId: TableId, rowId: number, columnId: string, text: string, options?: TextBlobOptions): Promise<BlobMetadata | null>;
 /** Read a blob column; the caller decides how to consume the body. */
-export declare function downloadBlob(tableId: number, rowId: number, columnId: string, options?: BlobDownloadOptions): Promise<Response | null>;
+export declare function downloadBlob(tableId: TableId, rowId: number, columnId: string, options?: BlobDownloadOptions): Promise<Response | null>;
 /** Text of a blob column — JSONL transcripts and documents. `null` when absent. */
-export declare function downloadBlobText(tableId: number, rowId: number, columnId: string, options?: BlobDownloadOptions): Promise<string | null>;
+export declare function downloadBlobText(tableId: TableId, rowId: number, columnId: string, options?: BlobDownloadOptions): Promise<string | null>;
 /** Bytes of a blob column, for an image or audio pipeline. `null` when absent. */
-export declare function downloadBlobFile(tableId: number, rowId: number, columnId: string, options?: BlobDownloadOptions): Promise<Blob | null>;
+export declare function downloadBlobFile(tableId: TableId, rowId: number, columnId: string, options?: BlobDownloadOptions): Promise<Blob | null>;
 /**
  * Object URL for a blob column, ready for `src`. `null` when absent; the caller
  * revokes the URL (`URL.revokeObjectURL`) when it unmounts.
  */
-export declare function downloadBlobUrl(tableId: number, rowId: number, columnId: string, options?: BlobDownloadOptions): Promise<string | null>;
+export declare function downloadBlobUrl(tableId: TableId, rowId: number, columnId: string, options?: BlobDownloadOptions): Promise<string | null>;
 //# sourceMappingURL=tables.d.ts.map

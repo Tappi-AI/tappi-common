@@ -33,9 +33,11 @@ export interface TableContract {
 }
 
 /** A table the caller can read and write, with this user's own column ids. */
+export type TableId = string | number;
+
 export interface ResolvedTable {
 	workspaceId: string;
-	tableId: number;
+	tableId: TableId;
 	columns: Record<string, string>;
 }
 
@@ -74,7 +76,7 @@ interface WorkspaceSummary {
 }
 
 interface TableSummary {
-	table_id: number;
+	table_id: TableId;
 	table_name: string;
 	workspace_id: string;
 }
@@ -155,7 +157,7 @@ export function createTableResolver(contract: TableContract): {
 
 async function provision(contract: TableContract, key: string): Promise<ResolvedTable> {
 	const owner = await ensureWorkspace(contract);
-	let tableId = await findTable(contract, owner);
+	let tableId: TableId | undefined = await findTable(contract, owner);
 
 	if (tableId === undefined) {
 		if (contract.create === false) {
@@ -167,11 +169,17 @@ async function provision(contract: TableContract, key: string): Promise<Resolved
 		}
 		const created = await apiJson<TableSummary>('/api/v1/tables', {
 			method: 'POST',
-			body: JSON.stringify({ table_name: contract.tableName, workspace_id: owner })
+			body: JSON.stringify({
+				table_id: contract.tableName,
+				table_name: contract.tableName,
+				workspace_id: owner
+			})
 		});
 		tableId = created.table_id;
 	}
-	if (typeof tableId !== 'number') throw new Error(`The ${contract.noun} table did not return an id.`);
+	if (typeof tableId !== 'number' && !(typeof tableId === 'string' && tableId)) {
+		throw new Error(`The ${contract.noun} table did not return an id.`);
+	}
 
 	let schema = await readSchema(tableId, owner);
 	const have = new Set(schema.map((column) => column.name));
@@ -192,7 +200,7 @@ async function provision(contract: TableContract, key: string): Promise<Resolved
 				}
 			);
 		}
-		await apiJson<ColumnSummary>(`/api/v1/tables/${tableId}/columns`, {
+		await apiJson<ColumnSummary>(`/api/v1/tables/${encodeURIComponent(tableId)}/columns`, {
 			method: 'POST',
 			body: JSON.stringify(needed)
 		});
@@ -247,7 +255,7 @@ async function createOrFindWorkspace(contract: TableContract): Promise<string> {
 	return found;
 }
 
-async function findTable(contract: TableContract, owner: string): Promise<number | undefined> {
+async function findTable(contract: TableContract, owner: string): Promise<TableId | undefined> {
 	const list = await apiJson<TableSummary[]>('/api/v1/tables');
 	return list.find(
 		(table) =>
@@ -255,53 +263,53 @@ async function findTable(contract: TableContract, owner: string): Promise<number
 	)?.table_id;
 }
 
-async function readSchema(tableId: number, owner: string): Promise<ColumnSummary[]> {
+async function readSchema(tableId: TableId, owner: string): Promise<ColumnSummary[]> {
 	const body = await apiJson<{ columns?: ColumnSummary[] }>(
-		`/api/v1/tables/${tableId}?workspace_id=${encodeURIComponent(owner)}`
+		`/api/v1/tables/${encodeURIComponent(tableId)}?workspace_id=${encodeURIComponent(owner)}`
 	);
 	return body.columns ?? [];
 }
 
 /** Rows of a resolved table. */
 export async function listRows(
-	tableId: number,
+	tableId: TableId,
 	options: { limit?: number; offset?: number } = {}
 ): Promise<TableRow[]> {
 	const query = new URLSearchParams();
 	if (options.limit !== undefined) query.set('limit', String(options.limit));
 	if (options.offset !== undefined) query.set('offset', String(options.offset));
 	const suffix = query.size ? `?${query.toString()}` : '';
-	return apiJson<TableRow[]>(`/api/v1/tables/${tableId}/rows${suffix}`);
+	return apiJson<TableRow[]>(`/api/v1/tables/${encodeURIComponent(tableId)}/rows${suffix}`);
 }
 
 export async function createRow(
-	tableId: number,
+	tableId: TableId,
 	rowData: Record<string, unknown>
 ): Promise<TableRow> {
-	return apiJson<TableRow>(`/api/v1/tables/${tableId}/rows`, {
+	return apiJson<TableRow>(`/api/v1/tables/${encodeURIComponent(tableId)}/rows`, {
 		method: 'POST',
 		body: JSON.stringify({ row_data: rowData })
 	});
 }
 
 export async function updateRow(
-	tableId: number,
+	tableId: TableId,
 	rowId: number,
 	rowData: Record<string, unknown>
 ): Promise<TableRow> {
-	return apiJson<TableRow>(`/api/v1/tables/${tableId}/rows/${rowId}`, {
+	return apiJson<TableRow>(`/api/v1/tables/${encodeURIComponent(tableId)}/rows/${rowId}`, {
 		method: 'PUT',
 		body: JSON.stringify({ row_data: rowData })
 	});
 }
 
-export async function deleteRow(tableId: number, rowId: number): Promise<void> {
-	await apiFetch(`/api/v1/tables/${tableId}/rows/${rowId}`, { method: 'DELETE' });
+export async function deleteRow(tableId: TableId, rowId: number): Promise<void> {
+	await apiFetch(`/api/v1/tables/${encodeURIComponent(tableId)}/rows/${rowId}`, { method: 'DELETE' });
 }
 
 /** Path of the one file a blob column holds. */
-function blobPath(tableId: number, rowId: number, columnId: string): string {
-	return `/api/v1/tables/${tableId}/rows/${rowId}/blob/${columnId}`;
+function blobPath(tableId: TableId, rowId: number, columnId: string): string {
+	return `/api/v1/tables/${encodeURIComponent(tableId)}/rows/${rowId}/blob/${columnId}`;
 }
 
 function formWith(field: string, file: Blob, filename?: string): FormData {
@@ -337,7 +345,7 @@ export interface BlobDownloadOptions {
  * answers with it.
  */
 export async function uploadBlob(
-	tableId: number,
+	tableId: TableId,
 	rowId: number,
 	columnId: string,
 	file: Blob | FormData,
@@ -356,7 +364,7 @@ export interface TextBlobOptions {
 
 /** A text payload (a JSONL transcript, a document) as one stored file. */
 export async function uploadTextBlob(
-	tableId: number,
+	tableId: TableId,
 	rowId: number,
 	columnId: string,
 	text: string,
@@ -380,7 +388,7 @@ async function readMetadata(response: Response): Promise<BlobMetadata | null> {
 
 /** Read a blob column; the caller decides how to consume the body. */
 export async function downloadBlob(
-	tableId: number,
+	tableId: TableId,
 	rowId: number,
 	columnId: string,
 	options: BlobDownloadOptions = {}
@@ -395,7 +403,7 @@ export async function downloadBlob(
 
 /** Text of a blob column — JSONL transcripts and documents. `null` when absent. */
 export async function downloadBlobText(
-	tableId: number,
+	tableId: TableId,
 	rowId: number,
 	columnId: string,
 	options: BlobDownloadOptions = {}
@@ -406,7 +414,7 @@ export async function downloadBlobText(
 
 /** Bytes of a blob column, for an image or audio pipeline. `null` when absent. */
 export async function downloadBlobFile(
-	tableId: number,
+	tableId: TableId,
 	rowId: number,
 	columnId: string,
 	options: BlobDownloadOptions = {}
@@ -420,7 +428,7 @@ export async function downloadBlobFile(
  * revokes the URL (`URL.revokeObjectURL`) when it unmounts.
  */
 export async function downloadBlobUrl(
-	tableId: number,
+	tableId: TableId,
 	rowId: number,
 	columnId: string,
 	options: BlobDownloadOptions = {}

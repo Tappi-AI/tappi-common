@@ -11,7 +11,7 @@ import {
 } from '../src/latticecast/tables.js';
 
 interface FakeTable {
-	table_id: number;
+	table_id: number | string;
 	table_name: string;
 	workspace_id: string;
 	columns: { name: string; column_id: string; type: string }[];
@@ -22,6 +22,7 @@ function fakeBackend() {
 	const workspaces: { workspace_id: string; workspace_name: string }[] = [];
 	const tables: FakeTable[] = [];
 	const writes: string[] = [];
+	const bodies: { path: string; body: Record<string, unknown> }[] = [];
 	let nextTable = 100;
 	let nextColumn = 1;
 
@@ -31,6 +32,7 @@ function fakeBackend() {
 		const method = init.method ?? 'GET';
 		const path = new URL(url, 'https://x').pathname;
 		if (method !== 'GET') writes.push(`${method} ${path}`);
+		if (method !== 'GET' && init.body) bodies.push({ path, body: JSON.parse(String(init.body)) });
 
 		if (path === '/api/v1/workspaces' && method === 'GET') return json(workspaces);
 		if (path === '/api/v1/workspaces' && method === 'POST') {
@@ -52,27 +54,27 @@ function fakeBackend() {
 			return json({ table_id: table.table_id, table_name: table.table_name, workspace_id: table.workspace_id }, 201);
 		}
 
-		const columnMatch = path.match(/^\/api\/v1\/tables\/(\d+)\/columns$/);
+		const columnMatch = path.match(/^\/api\/v1\/tables\/([^/]+)\/columns$/);
 		if (columnMatch && method === 'POST') {
-			const table = tables.find((item) => item.table_id === Number(columnMatch[1]))!;
+			const table = tables.find((item) => String(item.table_id) === decodeURIComponent(columnMatch[1]))!;
 			const body = JSON.parse(String(init.body));
 			table.columns.push({ name: body.name, type: body.type, column_id: `c${nextColumn++}` });
 			return json(table.columns.at(-1), 201);
 		}
 
-		const schemaMatch = path.match(/^\/api\/v1\/tables\/(\d+)$/);
+		const schemaMatch = path.match(/^\/api\/v1\/tables\/([^/]+)$/);
 		if (schemaMatch && method === 'GET') {
-			const table = tables.find((item) => item.table_id === Number(schemaMatch[1]))!;
+			const table = tables.find((item) => String(item.table_id) === decodeURIComponent(schemaMatch[1]))!;
 			return json({ ...table, columns: table.columns });
 		}
 
-		const rowsMatch = path.match(/^\/api\/v1\/tables\/(\d+)\/rows$/);
+		const rowsMatch = path.match(/^\/api\/v1\/tables\/([^/]+)\/rows$/);
 		if (rowsMatch && method === 'GET') return json([{ row_id: 1, row_data: {} }]);
 
 		return json({ detail: `unhandled ${method} ${path}` }, 404);
 	};
 
-	return { workspaces, tables, writes, handler };
+	return { workspaces, tables, writes, bodies, handler };
 }
 
 const CONTRACT: TableContract = {
@@ -114,6 +116,36 @@ describe('resolveTable', () => {
 			'POST /api/v1/tables/100/columns',
 			'POST /api/v1/tables/100/columns'
 		]);
+	});
+
+	it('carries both contract spellings when it creates a table', async () => {
+		// Production keys a table by name (`table_id`), stage by name
+		// (`table_name`); sending the pair is what lets one package serve both.
+		await resolveTable(CONTRACT);
+		const created = backend.bodies.find((call) => call.path === '/api/v1/tables');
+		expect(created?.body).toMatchObject({
+			table_id: 'sleep-bracelets',
+			table_name: 'sleep-bracelets',
+			workspace_id: 'w1'
+		});
+	});
+
+	it('resolves a deployment that keys tables by name instead of a number', async () => {
+		backend.workspaces.push({ workspace_id: 'w1', workspace_name: 'tappi' });
+		backend.tables.push({
+			table_id: 'sleep-bracelets',
+			table_name: 'sleep-bracelets',
+			workspace_id: 'w1',
+			columns: [
+				{ name: 'Code', column_id: 'c1', type: 'text' },
+				{ name: 'Label', column_id: 'c2', type: 'text' }
+			]
+		});
+
+		const table = await resolveTable(CONTRACT);
+		expect(table.tableId).toBe('sleep-bracelets');
+		const rows = await listRows(table.tableId, { limit: 5 });
+		expect(rows).toHaveLength(1);
 	});
 
 	it('reuses the account\'s existing workspace, table and columns', async () => {

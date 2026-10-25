@@ -1,5 +1,10 @@
 # @tappi-ai/common
 
+> Table ids are opaque: `table_id` is a number on stage and the table's name on
+> production, so the resolver types it `TableId = string | number`, sends both
+> `table_id` and `table_name` when it creates a table, and percent-encodes the
+> id in every URL.
+
 The one implementation of the layer every Tappi web app shares with LatticeCast:
 session, transport, and per-user table resolution.
 
