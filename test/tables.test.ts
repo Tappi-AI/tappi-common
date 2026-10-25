@@ -22,6 +22,7 @@ function fakeBackend() {
 	const workspaces: { workspace_id: string; workspace_name: string }[] = [];
 	const tables: FakeTable[] = [];
 	const writes: string[] = [];
+	let failColumnCreate = false;
 	const bodies: { path: string; body: Record<string, unknown> }[] = [];
 	let nextTable = 100;
 	let nextColumn = 1;
@@ -55,6 +56,9 @@ function fakeBackend() {
 		}
 
 		const columnMatch = path.match(/^\/api\/v1\/tables\/([^/]+)\/columns$/);
+		if (columnMatch && method === 'POST' && failColumnCreate) {
+			return json({ detail: 'column rejected' }, 500);
+		}
 		if (columnMatch && method === 'POST') {
 			const table = tables.find((item) => String(item.table_id) === decodeURIComponent(columnMatch[1]))!;
 			const body = JSON.parse(String(init.body));
@@ -74,7 +78,16 @@ function fakeBackend() {
 		return json({ detail: `unhandled ${method} ${path}` }, 404);
 	};
 
-	return { workspaces, tables, writes, bodies, handler };
+	return {
+		workspaces,
+		tables,
+		writes,
+		bodies,
+		handler,
+		set failColumnCreate(value: boolean) {
+			failColumnCreate = value;
+		}
+	};
 }
 
 const CONTRACT: TableContract = {
@@ -187,6 +200,21 @@ describe('resolveTable', () => {
 		resetTables();
 		await resolveTable(CONTRACT);
 		expect(backend.writes.filter((w) => w === 'POST /api/v1/tables')).toHaveLength(1);
+	});
+
+	it('names the column when adding one fails', async () => {
+		backend.workspaces.push({ workspace_id: 'w1', workspace_name: 'tappi' });
+		backend.tables.push({
+			table_id: 77,
+			table_name: 'sleep-bracelets',
+			workspace_id: 'w1',
+			columns: [{ name: 'Code', column_id: 'c1', type: 'text' }]
+		});
+		backend.failColumnCreate = true;
+
+		await expect(resolveTable(CONTRACT)).rejects.toThrow(
+			'Could not add the Label column to the bracelet table. column rejected'
+		);
 	});
 
 	it('adds only the columns the existing table is missing', async () => {

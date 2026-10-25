@@ -126,10 +126,18 @@ async function provision(contract, key) {
                     .map((column) => column.name)
             });
         }
-        await apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}/columns`, {
-            method: 'POST',
-            body: JSON.stringify(needed)
-        });
+        try {
+            await apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}/columns`, {
+                method: 'POST',
+                body: JSON.stringify(needed)
+            });
+        }
+        catch (error) {
+            // A half-provisioned table is worse than none: name the column that
+            // failed so the message says what to fix, and keep the server detail.
+            const detail = error instanceof Error && error.message ? ` ${error.message}` : '';
+            throw new Error(`Could not add the ${needed.name} column to the ${contract.noun} table.${detail}`);
+        }
         added = true;
     }
     if (added)
