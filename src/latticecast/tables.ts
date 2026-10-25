@@ -77,7 +77,8 @@ interface WorkspaceSummary {
 
 interface TableSummary {
 	table_id: TableId;
-	table_name: string;
+	/** LC 0.80+ returns this; older deployments use the string table_id as the name. */
+	table_name?: string;
 	workspace_id: string;
 }
 
@@ -259,7 +260,8 @@ async function findTable(contract: TableContract, owner: string): Promise<TableI
 	const list = await apiJson<TableSummary[]>('/api/v1/tables');
 	return list.find(
 		(table) =>
-			table.table_name === contract.tableName && String(table.workspace_id) === String(owner)
+			(table.table_name ?? (typeof table.table_id === 'string' ? table.table_id : undefined)) === contract.tableName &&
+			String(table.workspace_id) === String(owner)
 	)?.table_id;
 }
 

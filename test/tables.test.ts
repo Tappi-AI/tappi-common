@@ -12,7 +12,7 @@ import {
 
 interface FakeTable {
 	table_id: number | string;
-	table_name: string;
+	table_name?: string;
 	workspace_id: string;
 	columns: { name: string; column_id: string; type: string }[];
 }
@@ -130,11 +130,10 @@ describe('resolveTable', () => {
 		});
 	});
 
-	it('resolves a deployment that keys tables by name instead of a number', async () => {
+	it('resolves an existing legacy table whose response has no table_name', async () => {
 		backend.workspaces.push({ workspace_id: 'w1', workspace_name: 'tappi' });
 		backend.tables.push({
 			table_id: 'sleep-bracelets',
-			table_name: 'sleep-bracelets',
 			workspace_id: 'w1',
 			columns: [
 				{ name: 'Code', column_id: 'c1', type: 'text' },
@@ -144,6 +143,7 @@ describe('resolveTable', () => {
 
 		const table = await resolveTable(CONTRACT);
 		expect(table.tableId).toBe('sleep-bracelets');
+		expect(backend.writes).toEqual([]);
 		const rows = await listRows(table.tableId, { limit: 5 });
 		expect(rows).toHaveLength(1);
 	});

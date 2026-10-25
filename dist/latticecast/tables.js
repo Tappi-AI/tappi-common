@@ -181,7 +181,8 @@ async function createOrFindWorkspace(contract) {
 }
 async function findTable(contract, owner) {
     const list = await apiJson('/api/v1/tables');
-    return list.find((table) => table.table_name === contract.tableName && String(table.workspace_id) === String(owner))?.table_id;
+    return list.find((table) => (table.table_name ?? (typeof table.table_id === 'string' ? table.table_id : undefined)) === contract.tableName &&
+        String(table.workspace_id) === String(owner))?.table_id;
 }
 async function readSchema(tableId, owner) {
     const body = await apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}?workspace_id=${encodeURIComponent(owner)}`);
