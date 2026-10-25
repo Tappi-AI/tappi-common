@@ -174,8 +174,30 @@ describe('resolveTable', () => {
 	});
 
 	it('refuses to create storage for a read-only contract', async () => {
-		await expect(resolveTable({ ...CONTRACT, create: false })).rejects.toBeInstanceOf(TableMissingError);
+		const attempt = resolveTable({ ...CONTRACT, create: false });
+		await expect(attempt).rejects.toBeInstanceOf(TableMissingError);
 		expect(backend.writes).toEqual([]);
+
+		const failure = (await attempt.catch((error: unknown) => error)) as TableMissingError;
+		expect(failure.stage).toBe('workspace');
+		expect(failure.workspaceName).toBe('tappi');
+		expect(failure.tableName).toBe('sleep-bracelets');
+	});
+
+	it('names the columns a read-only table is missing', async () => {
+		backend.workspaces.push({ workspace_id: 'w1', workspace_name: 'tappi' });
+		backend.tables.push({
+			table_id: 55,
+			table_name: 'sleep-bracelets',
+			workspace_id: 'w1',
+			columns: [{ name: 'Code', column_id: 'c1', type: 'text' }]
+		});
+
+		const attempt = resolveTable({ ...CONTRACT, create: false });
+		await expect(attempt).rejects.toBeInstanceOf(TableMissingError);
+		const failure = (await attempt.catch((error: unknown) => error)) as TableMissingError;
+		expect(failure.stage).toBe('columns');
+		expect(failure.missing).toEqual(['Label']);
 	});
 });
 

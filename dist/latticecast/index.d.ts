@@ -1,3 +1,3 @@
-export type { BlobDownloadOptions, BlobMetadata, BlobUploadOptions, ColumnDefinition, ResolvedTable, TableContract, TableRow, TextBlobOptions } from './tables.js';
+export type { BlobDownloadOptions, BlobMetadata, BlobUploadOptions, ColumnDefinition, MissingStage, ResolvedTable, TableContract, TableRow, TextBlobOptions } from './tables.js';
 export { createRow, createTableResolver, deleteRow, downloadBlob, downloadBlobFile, downloadBlobText, downloadBlobUrl, listRows, resetTable, resetTables, resolveTable, TableMissingError, updateRow, uploadBlob, uploadTextBlob } from './tables.js';
 //# sourceMappingURL=index.d.ts.map

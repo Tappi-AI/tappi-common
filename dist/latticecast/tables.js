@@ -11,9 +11,18 @@
 import { apiFetch, apiJson, LatticeCastError } from '../http.js';
 /** The account has no provisioned storage for a read-only contract. */
 export class TableMissingError extends Error {
-    constructor(message) {
+    stage;
+    /** Column names the table is missing (only for `stage: 'columns'`). */
+    missing;
+    workspaceName;
+    tableName;
+    constructor(message, missing) {
         super(message);
         this.name = 'TableMissingError';
+        this.stage = missing.stage;
+        this.missing = missing.columns ?? [];
+        this.workspaceName = missing.workspaceName;
+        this.tableName = missing.tableName;
     }
 }
 const workspaces = new Map();
@@ -82,7 +91,11 @@ async function provision(contract, key) {
     let tableId = await findTable(contract, owner);
     if (tableId === undefined) {
         if (contract.create === false) {
-            throw new TableMissingError(`This account has no ${contract.noun} table yet.`);
+            throw new TableMissingError(`This account has no ${contract.noun} table yet.`, {
+                stage: 'table',
+                workspaceName: contract.workspaceName,
+                tableName: contract.tableName
+            });
         }
         const created = await apiJson('/api/v1/tables', {
             method: 'POST',
@@ -99,7 +112,14 @@ async function provision(contract, key) {
         if (have.has(needed.name))
             continue;
         if (contract.create === false) {
-            throw new TableMissingError(`This account's ${contract.noun} table is missing the ${needed.name} column.`);
+            throw new TableMissingError(`This account's ${contract.noun} table is missing the ${needed.name} column.`, {
+                stage: 'columns',
+                workspaceName: contract.workspaceName,
+                tableName: contract.tableName,
+                columns: (contract.columns ?? [])
+                    .filter((column) => !have.has(column.name))
+                    .map((column) => column.name)
+            });
         }
         await apiJson(`/api/v1/tables/${tableId}/columns`, {
             method: 'POST',
@@ -138,7 +158,11 @@ async function createOrFindWorkspace(contract) {
     let found = list.find((workspace) => workspace.workspace_name === contract.workspaceName)?.workspace_id;
     if (!found) {
         if (contract.create === false) {
-            throw new TableMissingError(`This account has no ${contract.workspaceName} workspace yet.`);
+            throw new TableMissingError(`This account has no ${contract.workspaceName} workspace yet.`, {
+                stage: 'workspace',
+                workspaceName: contract.workspaceName,
+                tableName: contract.tableName
+            });
         }
         const created = await apiJson('/api/v1/workspaces', {
             method: 'POST',

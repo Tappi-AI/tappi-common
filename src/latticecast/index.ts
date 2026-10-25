@@ -3,6 +3,7 @@ export type {
 	BlobMetadata,
 	BlobUploadOptions,
 	ColumnDefinition,
+	MissingStage,
 	ResolvedTable,
 	TableContract,
 	TableRow,

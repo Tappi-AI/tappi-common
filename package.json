@@ -1,6 +1,6 @@
 {
 	"name": "@tappi-ai/common",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Shared LatticeCast session, transport and table-resolution layer for Tappi apps.",
 	"type": "module",
 	"license": "UNLICENSED",

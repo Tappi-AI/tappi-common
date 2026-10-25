@@ -28,9 +28,21 @@ export interface TableRow {
     row_id: number;
     row_data: Record<string, unknown>;
 }
+/** Which part of a read-only contract is not provisioned. */
+export type MissingStage = 'workspace' | 'table' | 'columns';
 /** The account has no provisioned storage for a read-only contract. */
 export declare class TableMissingError extends Error {
-    constructor(message: string);
+    readonly stage: MissingStage;
+    /** Column names the table is missing (only for `stage: 'columns'`). */
+    readonly missing: readonly string[];
+    readonly workspaceName: string;
+    readonly tableName: string;
+    constructor(message: string, missing: {
+        stage: MissingStage;
+        workspaceName: string;
+        tableName: string;
+        columns?: readonly string[];
+    });
 }
 /** Drop every resolved workspace/schema so the next user re-resolves. */
 export declare function resetTables(): void;

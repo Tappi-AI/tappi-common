@@ -44,11 +44,27 @@ export interface TableRow {
 	row_data: Record<string, unknown>;
 }
 
+/** Which part of a read-only contract is not provisioned. */
+export type MissingStage = 'workspace' | 'table' | 'columns';
+
 /** The account has no provisioned storage for a read-only contract. */
 export class TableMissingError extends Error {
-	constructor(message: string) {
+	readonly stage: MissingStage;
+	/** Column names the table is missing (only for `stage: 'columns'`). */
+	readonly missing: readonly string[];
+	readonly workspaceName: string;
+	readonly tableName: string;
+
+	constructor(
+		message: string,
+		missing: { stage: MissingStage; workspaceName: string; tableName: string; columns?: readonly string[] }
+	) {
 		super(message);
 		this.name = 'TableMissingError';
+		this.stage = missing.stage;
+		this.missing = missing.columns ?? [];
+		this.workspaceName = missing.workspaceName;
+		this.tableName = missing.tableName;
 	}
 }
 
@@ -143,7 +159,11 @@ async function provision(contract: TableContract, key: string): Promise<Resolved
 
 	if (tableId === undefined) {
 		if (contract.create === false) {
-			throw new TableMissingError(`This account has no ${contract.noun} table yet.`);
+			throw new TableMissingError(`This account has no ${contract.noun} table yet.`, {
+				stage: 'table',
+				workspaceName: contract.workspaceName,
+				tableName: contract.tableName
+			});
 		}
 		const created = await apiJson<TableSummary>('/api/v1/tables', {
 			method: 'POST',
@@ -160,7 +180,17 @@ async function provision(contract: TableContract, key: string): Promise<Resolved
 	for (const needed of contract.columns ?? []) {
 		if (have.has(needed.name)) continue;
 		if (contract.create === false) {
-			throw new TableMissingError(`This account's ${contract.noun} table is missing the ${needed.name} column.`);
+			throw new TableMissingError(
+				`This account's ${contract.noun} table is missing the ${needed.name} column.`,
+				{
+					stage: 'columns',
+					workspaceName: contract.workspaceName,
+					tableName: contract.tableName,
+					columns: (contract.columns ?? [])
+						.filter((column) => !have.has(column.name))
+						.map((column) => column.name)
+				}
+			);
 		}
 		await apiJson<ColumnSummary>(`/api/v1/tables/${tableId}/columns`, {
 			method: 'POST',
@@ -201,7 +231,11 @@ async function createOrFindWorkspace(contract: TableContract): Promise<string> {
 
 	if (!found) {
 		if (contract.create === false) {
-			throw new TableMissingError(`This account has no ${contract.workspaceName} workspace yet.`);
+			throw new TableMissingError(`This account has no ${contract.workspaceName} workspace yet.`, {
+				stage: 'workspace',
+				workspaceName: contract.workspaceName,
+				tableName: contract.tableName
+			});
 		}
 		const created = await apiJson<WorkspaceSummary>('/api/v1/workspaces', {
 			method: 'POST',
