@@ -72,8 +72,12 @@ function fakeBackend() {
 			return json({ ...table, columns: table.columns });
 		}
 
-		const rowsMatch = path.match(/^\/api\/v1\/tables\/([^/]+)\/rows$/);
-		if (rowsMatch && method === 'GET') return json([{ row_id: 1, row_data: {} }]);
+		if (path === '/api/v1/rows' && method === 'GET') {
+			return json({ items: [{ row_id: 1, row_data: {} }], has_more: false });
+		}
+		if (path === '/api/v1/tables/sleep-bracelets/rows' && method === 'GET') {
+			return json([{ row_id: 1, row_data: {} }]);
+		}
 
 		return json({ detail: `unhandled ${method} ${path}` }, 404);
 	};
@@ -266,6 +270,26 @@ describe('rows', () => {
 		const rows = await listRows(100, { limit: 5 });
 		expect(rows).toHaveLength(1);
 		const [url] = vi.mocked(fetch).mock.calls.at(-1)!;
-		expect(String(url)).toBe('https://table.novasplit.ai/api/v1/tables/100/rows?limit=5');
+		const request = new URL(String(url));
+		expect(request.pathname).toBe('/api/v1/rows');
+		expect(request.searchParams.get('table_ids')).toBe('[100]');
+		expect(request.searchParams.get('page_size')).toBe('5');
+	});
+
+	it('reads every requested page without losing rows after the first 200', async () => {
+		const rows = Array.from({ length: 225 }, (_, index) => ({ row_id: 225 - index, row_data: {} }));
+		vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+			const query = new URL(url).searchParams;
+			const page = Number(query.get('page'));
+			const size = Number(query.get('page_size'));
+			const start = (page - 1) * size;
+			return new Response(JSON.stringify({
+				items: rows.slice(start, start + size),
+				has_more: start + size < rows.length
+			}), { status: 200 });
+		}));
+		const result = await listRows(100, { limit: 225 });
+		expect(result.map((row) => row.row_id)).toEqual(rows.map((row) => row.row_id));
+		expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
 	});
 });

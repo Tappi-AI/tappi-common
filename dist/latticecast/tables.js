@@ -196,15 +196,38 @@ async function readSchema(tableId, owner) {
     const body = await apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}?workspace_id=${encodeURIComponent(owner)}`);
     return body.columns ?? [];
 }
-/** Rows of a resolved table. */
+/** Rows of a resolved table, read through LC's paginated row query. */
 export async function listRows(tableId, options = {}) {
-    const query = new URLSearchParams();
-    if (options.limit !== undefined)
-        query.set('limit', String(options.limit));
-    if (options.offset !== undefined)
-        query.set('offset', String(options.offset));
-    const suffix = query.size ? `?${query.toString()}` : '';
-    return apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}/rows${suffix}`);
+    const numericId = Number(tableId);
+    const limit = options.limit ?? 100;
+    const offset = options.offset ?? 0;
+    if (!Number.isSafeInteger(limit) || limit < 0 || !Number.isSafeInteger(offset) || offset < 0) {
+        throw new Error('Row limit and offset must be non-negative integers.');
+    }
+    if (limit === 0)
+        return [];
+    // Older LC deployments identify tables by name and do not have the row query route.
+    if (!Number.isSafeInteger(numericId) || numericId <= 0) {
+        if (typeof tableId !== 'string' || !tableId.trim()) {
+            throw new Error(`Invalid LatticeCast table ID: ${tableId}`);
+        }
+        const legacyQuery = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+        return apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}/rows?${legacyQuery.toString()}`);
+    }
+    const rows = [];
+    const pageSize = Math.min(200, offset + limit);
+    for (let page = 1; rows.length < offset + limit; page++) {
+        const query = new URLSearchParams({
+            table_ids: JSON.stringify([numericId]),
+            page: String(page),
+            page_size: String(pageSize)
+        });
+        const result = await apiJson(`/api/v1/rows?${query.toString()}`);
+        rows.push(...result.items);
+        if (!result.has_more || result.items.length === 0)
+            break;
+    }
+    return rows.slice(offset, offset + limit);
 }
 export async function createRow(tableId, rowData) {
     return apiJson(`/api/v1/tables/${encodeURIComponent(tableId)}/rows`, {

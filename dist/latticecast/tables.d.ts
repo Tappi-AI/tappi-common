@@ -61,7 +61,7 @@ export declare function createTableResolver(contract: TableContract): {
     resolve: () => Promise<ResolvedTable>;
     reset: () => void;
 };
-/** Rows of a resolved table. */
+/** Rows of a resolved table, read through LC's paginated row query. */
 export declare function listRows(tableId: TableId, options?: {
     limit?: number;
     offset?: number;
