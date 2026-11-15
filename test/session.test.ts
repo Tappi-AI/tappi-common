@@ -84,4 +84,51 @@ describe('session persistence', () => {
 		expect(get(session.authStore)).toBeNull();
 		expect(storage.map.has(key)).toBe(false);
 	});
+
+	it('drops an old session without expiresAt using the JWT exp', async () => {
+		const config = await import('../src/config.js');
+		config.configureBackend({ backendDomain: 'https://stage-table.novasplit.ai' });
+		const key = 'loginInfo:https://stage-table.novasplit.ai';
+		const token = `x.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 10 }))}.x`;
+		storage.map.set(key, JSON.stringify({ provider: 'native-handoff', accessToken: token, userInfo: { sub: 'u' }, role: 'user' }));
+		const session = await import('../src/auth/session.js');
+		session.hydrateSession();
+		const { get } = await import('svelte/store');
+		expect(get(session.authStore)).toBeNull();
+		expect(get(session.sessionNotice)).toBe(session.SESSION_EXPIRED_MESSAGE);
+		expect(storage.map.has(key)).toBe(false);
+	});
+
+	it('adds expiry to a still-valid old JWT and rechecks after resume', async () => {
+		const config = await import('../src/config.js');
+		config.configureBackend({ backendDomain: 'https://stage-table.novasplit.ai' });
+		const key = 'loginInfo:https://stage-table.novasplit.ai';
+		const token = `x.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 60 }))}.x`;
+		storage.map.set(key, JSON.stringify({ provider: 'native-handoff', accessToken: token, userInfo: { sub: 'u' }, role: 'user' }));
+		const session = await import('../src/auth/session.js');
+		session.hydrateSession();
+		const { get } = await import('svelte/store');
+		expect(get(session.authStore)?.expiresAt).toBeGreaterThan(Date.now());
+		vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 120_000);
+		session.checkSessionExpiry();
+		expect(get(session.authStore)).toBeNull();
+		vi.restoreAllMocks();
+	});
+
+	it('expires a live handoff and allows a new login to clear the notice', async () => {
+		vi.useFakeTimers();
+		try {
+			const config = await import('../src/config.js');
+			config.configureBackend({ backendDomain: 'https://stage-table.novasplit.ai' });
+			const session = await import('../src/auth/session.js');
+			session.hydrateSession();
+			const { get } = await import('svelte/store');
+			session.setSession({ provider: 'native-handoff', accessToken: 'short', userInfo: { sub: 'u' }, role: 'user', expiresAt: Date.now() + 1000 });
+			vi.advanceTimersByTime(1001);
+			expect(get(session.authStore)).toBeNull();
+			expect(get(session.sessionNotice)).toBe(session.SESSION_EXPIRED_MESSAGE);
+			session.setSession({ provider: 'none', accessToken: 'new', userInfo: { sub: 'u' }, role: 'user' });
+			expect(get(session.sessionNotice)).toBe('');
+		} finally { vi.useRealTimers(); }
+	});
 });

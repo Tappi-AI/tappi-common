@@ -9,7 +9,8 @@ import {
 	LatticeCastError,
 	SESSION_EXPIRED_MESSAGE
 } from '../src/http.js';
-import { setSession } from '../src/auth/session.js';
+import { authStore, sessionNotice, setSession } from '../src/auth/session.js';
+import { get } from 'svelte/store';
 
 const session = {
 	provider: 'none' as const,
@@ -86,6 +87,20 @@ describe('apiJson', () => {
 	it('rewrites an expired session into the sign-in copy', async () => {
 		stubFetch(() => new Response('', { status: 401 }));
 		await expect(apiJson('/api/v1/tables')).rejects.toMatchObject({ message: SESSION_EXPIRED_MESSAGE });
+		expect(get(authStore)).toBeNull();
+		expect(get(sessionNotice)).toBe(SESSION_EXPIRED_MESSAGE);
+	});
+
+	it('does not clear a newer login when an older request returns 401', async () => {
+		let finish!: (response: Response) => void;
+		stubFetch(() => new Promise<Response>((resolve) => { finish = resolve; }));
+		const pending = apiJson('/api/v1/tables');
+		const newer = { ...session, accessToken: 'new-token' };
+		setSession(newer);
+		finish(new Response('', { status: 401 }));
+		await expect(pending).rejects.toMatchObject({ status: 401 });
+		expect(get(authStore)).toBe(newer);
+		expect(get(sessionNotice)).toBe('');
 	});
 
 	it('keeps a 401 detail on a call that carried no token', async () => {
