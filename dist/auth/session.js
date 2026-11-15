@@ -7,7 +7,13 @@ function read() {
         return null;
     try {
         const raw = localStorage.getItem(sessionStorageKey());
-        return raw ? JSON.parse(raw) : null;
+        if (!raw)
+            return null;
+        const info = JSON.parse(raw);
+        if (!info?.accessToken || (typeof info.expiresAt === 'number' && info.expiresAt <= Date.now())) {
+            return null;
+        }
+        return info;
     }
     catch {
         return null;

@@ -70,4 +70,18 @@ describe('session persistence', () => {
 		const { get } = await import('svelte/store');
 		expect(get(session.authStore)).toBeNull();
 	});
+
+	it('drops a stored session whose access token has expired', async () => {
+		const config = await import('../src/config.js');
+		config.configureBackend({ backendDomain: 'https://stage-table.novasplit.ai' });
+		const key = 'loginInfo:https://stage-table.novasplit.ai';
+		storage.map.set(key, JSON.stringify({
+			provider: 'native-handoff', accessToken: 'stale', userInfo: { sub: 'u' }, role: 'user', expiresAt: Date.now() - 1000
+		}));
+		const session = await import('../src/auth/session.js');
+		session.hydrateSession();
+		const { get } = await import('svelte/store');
+		expect(get(session.authStore)).toBeNull();
+		expect(storage.map.has(key)).toBe(false);
+	});
 });

@@ -7,8 +7,8 @@ export interface HandoffOptions {
     hash?: string;
 }
 /**
- * Consume the Android app's fragment-only LatticeCast ticket, bind it to this
- * browser with PKCE, then exchange its code for LC's normal OAuth SSO token.
+ * Consume the Android app's fragment-only LatticeCast ticket through LC's
+ * origin-bound browser exchange.
  * Returns whether a session was created.
  */
 export declare function acceptNativeHandoff(options: HandoffOptions): Promise<boolean>;
