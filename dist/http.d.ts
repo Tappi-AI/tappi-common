@@ -1,4 +1,5 @@
-export declare const SESSION_EXPIRED_MESSAGE = "Your session has expired. Sign in again to continue.";
+import { SESSION_EXPIRED_MESSAGE } from './auth/session.js';
+export { SESSION_EXPIRED_MESSAGE };
 /** A failed LatticeCast request; `status` is 0 when the network was unreachable. */
 export declare class LatticeCastError extends Error {
     readonly status: number;

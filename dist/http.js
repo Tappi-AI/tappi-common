@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { apiUrl } from './config.js';
-import { authStore } from './auth/session.js';
-export const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Sign in again to continue.';
+import { authStore, checkSessionExpiry, clearSessionIfCurrent, SESSION_EXPIRED_MESSAGE } from './auth/session.js';
+export { SESSION_EXPIRED_MESSAGE };
 /** A failed LatticeCast request; `status` is 0 when the network was unreachable. */
 export class LatticeCastError extends Error {
     status;
@@ -17,6 +17,7 @@ export class LatticeCastError extends Error {
 export { LatticeCastError as BackendError };
 /** The cached Bearer token, or a 401 error. */
 export function accessToken() {
+    checkSessionExpiry();
     const token = get(authStore)?.accessToken;
     if (!token)
         throw new LatticeCastError(SESSION_EXPIRED_MESSAGE, 401);
@@ -58,6 +59,9 @@ export async function apiFetch(path, init = {}, options = {}) {
     const { auth = true, bearer = false } = options;
     const headers = {};
     if (auth)
+        checkSessionExpiry();
+    const requestSession = auth ? get(authStore) : null;
+    if (auth)
         Object.assign(headers, bearer ? bearerHeaders() : authHeaders());
     if (init.body && !(init.body instanceof FormData) && !bearer) {
         headers['Content-Type'] = 'application/json';
@@ -70,8 +74,12 @@ export async function apiFetch(path, init = {}, options = {}) {
     catch {
         throw new LatticeCastError('Could not reach LatticeCast. Check your connection and try again.', 0, path);
     }
-    if (!response.ok)
+    if (!response.ok) {
+        if (response.status === 401 && auth && headers.Authorization === `Bearer ${requestSession?.accessToken}`) {
+            clearSessionIfCurrent(requestSession);
+        }
         throw new LatticeCastError(await readDetail(response, auth), response.status, path);
+    }
     return response;
 }
 /** `apiFetch` + JSON decode (204 answers with undefined). */
